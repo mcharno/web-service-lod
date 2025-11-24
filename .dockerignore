@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.git
+.gitignore
+README.md
+.vscode
+.idea
+coverage
+.nyc_output
+*.log
+.DS_Store
+src/test
+*.test.js
+*.spec.js
+
+# Java artifacts (legacy)
+target
+*.class
+*.jar
+*.war
+pom.xml
+src/main/java
+src/test/java
