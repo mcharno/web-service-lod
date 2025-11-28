@@ -289,12 +289,144 @@ docker-compose down
 │   ├── middleware/      # Custom middleware
 │   ├── app.js          # Express application setup
 │   └── server.js       # Server entry point
+├── infra/
+│   ├── k8s/
+│   │   └── base/        # Kubernetes manifests
+│   └── argocd/          # ArgoCD application config
+├── .github/
+│   └── workflows/       # CI/CD pipeline
 ├── .env.example        # Environment variables template
 ├── .gitignore         # Git ignore rules
-├── Dockerfile         # Docker configuration
-├── docker-compose.yml # Docker Compose configuration
+├── Dockerfile         # Production Docker config
+├── Dockerfile.dev     # Development Docker config
+├── docker-compose.yml # Production Docker Compose
+├── docker-compose.dev.yml # Development Docker Compose
 ├── package.json       # Project dependencies
 └── README.md         # This file
+```
+
+## Deployment
+
+This service includes a comprehensive CI/CD pipeline for k3s deployment using GitHub Actions and ArgoCD.
+
+### CI/CD Pipeline
+
+**GitHub Actions** ([.github/workflows/ci-cd.yaml](.github/workflows/ci-cd.yaml)):
+- Runs tests with coverage on every push
+- Runs linters and code quality checks
+- Builds Docker image on push to main
+- Pushes images to GitHub Container Registry (GHCR)
+- Updates image tags in Kubernetes manifests
+
+**ArgoCD** (configured via [infra/argocd/application.yaml](infra/argocd/application.yaml)):
+- Monitors this repository for manifest changes in `infra/k8s/base`
+- Automatically syncs to k3s cluster
+- Provides GitOps-based deployment with auto-healing
+
+**Workflow:**
+```
+Code Push → GitHub Actions → Test → Build → Push to GHCR
+                                              ↓
+                                  Update infra/k8s/base/kustomization.yaml
+                                              ↓
+                                  ArgoCD Auto-Sync → k3s Cluster
+```
+
+### Container Images
+
+Images are built and pushed to GitHub Container Registry:
+- `ghcr.io/mcharno/linked-data-service:latest`
+- `ghcr.io/mcharno/linked-data-service:main-<sha>`
+
+### Infrastructure Setup
+
+The `infra/k8s/base` directory contains Kubernetes manifests:
+- **namespace.yaml**: Namespace definition
+- **deployment.yaml**: Service deployment with 2 replicas
+- **service.yaml**: ClusterIP service
+- **ingress.yaml**: Ingress configuration for external access
+- **configmap.yaml**: Application configuration
+- **secret-template.yaml**: Secret template (needs actual values)
+- **kustomization.yaml**: Kustomize configuration
+
+### Deploying to k3s
+
+#### Prerequisites
+1. k3s cluster with ArgoCD installed
+2. GitHub Container Registry access configured (ghcr-secret)
+3. Geonames API credentials
+
+#### Setup Steps
+
+1. **Create the namespace and secrets**:
+```bash
+kubectl create namespace linked-data
+
+# Create GHCR pull secret
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=YOUR_GITHUB_USERNAME \
+  --docker-password=YOUR_GITHUB_PAT \
+  -n linked-data
+
+# Create application secrets
+kubectl create secret generic linked-data-secrets \
+  --from-literal=geonames_username=YOUR_GEONAMES_USERNAME \
+  -n linked-data
+```
+
+2. **Deploy the ArgoCD Application**:
+```bash
+kubectl apply -f infra/argocd/application.yaml
+```
+
+3. **Verify deployment**:
+```bash
+# Check ArgoCD application status
+argocd app get linked-data-service
+
+# Check pods
+kubectl get pods -n linked-data
+
+# Check service
+kubectl get svc -n linked-data
+
+# Check ingress
+kubectl get ingress -n linked-data
+```
+
+4. **Access the service**:
+- Update `infra/k8s/base/ingress.yaml` with your domain
+- Access via: `https://lod.yourdomain.com`
+
+### Manual Sync
+
+If needed, manually trigger an ArgoCD sync:
+```bash
+argocd app sync linked-data-service
+```
+
+### Monitoring
+
+Check logs:
+```bash
+# All pods
+kubectl logs -n linked-data -l app=linked-data-service
+
+# Specific pod
+kubectl logs -n linked-data <pod-name>
+
+# Follow logs
+kubectl logs -n linked-data -l app=linked-data-service -f
+```
+
+Check health:
+```bash
+# Health endpoint
+curl https://lod.yourdomain.com/health
+
+# API documentation
+curl https://lod.yourdomain.com/api/v1/docs
 ```
 
 ## Integration with linked-data-toolkit

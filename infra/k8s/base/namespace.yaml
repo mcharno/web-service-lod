@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linked-data
+  labels:
+    app: linked-data-service
+    environment: production
