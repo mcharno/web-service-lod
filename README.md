@@ -17,8 +17,9 @@ A modern RESTful web service built with Node.js and Express that provides access
 ## Prerequisites
 
 - Node.js >= 18.0.0
-- npm >= 9.0.0
+- Yarn >= 3.0.0
 - Geonames username (required for Geonames API - register at https://www.geonames.org/login)
+- Docker and Docker Compose (optional, for containerized deployment)
 
 ## Installation
 
@@ -30,7 +31,7 @@ cd web-service-lod
 
 2. Install dependencies:
 ```bash
-npm install
+yarn install
 ```
 
 3. Create environment configuration:
@@ -47,22 +48,54 @@ GEONAMES_USERNAME=your_username_here
 
 ## Usage
 
-### Development Mode
-```bash
-npm run dev
-```
+### Local Development (Direct)
 
-### Production Mode
-```bash
-npm start
-```
+Run the service directly on your machine:
 
-### Running Tests
 ```bash
-npm test
+# Development mode with auto-reload
+yarn dev
+
+# Production mode
+yarn start
+
+# Run tests
+yarn test
+
+# Run tests in watch mode
+yarn test:watch
+
+# Run linter
+yarn lint
+
+# Fix linting issues
+yarn lint:fix
 ```
 
 The service will start on `http://localhost:3000` (or the PORT specified in your .env file).
+
+### Local Development (Docker)
+
+Run the service in a Docker container with live reload:
+
+```bash
+# Start the development container
+docker-compose -f docker-compose.dev.yml up
+
+# Stop the development container
+docker-compose -f docker-compose.dev.yml down
+
+# Rebuild and start (after dependency changes)
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+The containerized service will be available at `http://localhost:3000`.
+
+**Benefits of Docker development:**
+- Consistent environment across team members
+- No need to install Node.js/Yarn locally
+- Isolated from your system dependencies
+- Easy cleanup (`docker-compose down`)
 
 ## API Endpoints
 
@@ -209,20 +242,42 @@ Returns service health status, timestamp, and uptime.
 
 ## Docker Support
 
-### Build Image
+### Production Deployment
+
+Build and run the production container:
+
 ```bash
+# Build the production image
 docker build -t linked-data-service .
-```
 
-### Run Container
-```bash
+# Run the production container
 docker run -p 3000:3000 --env-file .env linked-data-service
+
+# Or use Docker Compose for production
+docker-compose up
+
+# Run in detached mode
+docker-compose up -d
+
+# Stop the production container
+docker-compose down
 ```
 
-### Using Docker Compose
-```bash
-docker-compose up
-```
+### Development vs Production Containers
+
+- **Development** (`docker-compose.dev.yml`):
+  - Uses `Dockerfile.dev`
+  - Includes all dev dependencies
+  - Enables hot reload with nodemon
+  - Mounts source code for live updates
+  - Debug logging enabled
+
+- **Production** (`docker-compose.yml`):
+  - Uses production `Dockerfile`
+  - Production dependencies only
+  - Optimized image size
+  - No volume mounts
+  - Info-level logging
 
 ## Project Structure
 
@@ -234,21 +289,194 @@ docker-compose up
 │   ├── middleware/      # Custom middleware
 │   ├── app.js          # Express application setup
 │   └── server.js       # Server entry point
+├── infra/
+│   ├── k8s/
+│   │   └── base/        # Kubernetes manifests
+│   └── argocd/          # ArgoCD application config
+├── .github/
+│   └── workflows/       # CI/CD pipeline
 ├── .env.example        # Environment variables template
 ├── .gitignore         # Git ignore rules
-├── Dockerfile         # Docker configuration
-├── docker-compose.yml # Docker Compose configuration
+├── Dockerfile         # Production Docker config
+├── Dockerfile.dev     # Development Docker config
+├── docker-compose.yml # Production Docker Compose
+├── docker-compose.dev.yml # Development Docker Compose
 ├── package.json       # Project dependencies
 └── README.md         # This file
 ```
 
+## Deployment
+
+This service includes a comprehensive CI/CD pipeline for k3s deployment using GitHub Actions and ArgoCD.
+
+### CI/CD Pipeline
+
+**GitHub Actions** ([.github/workflows/ci-cd.yaml](.github/workflows/ci-cd.yaml)):
+- Runs tests with coverage on every push
+- Runs linters and code quality checks
+- Builds Docker image on push to main
+- Pushes images to GitHub Container Registry (GHCR)
+- Updates image tags in Kubernetes manifests
+
+**ArgoCD** (configured via [infra/argocd/application.yaml](infra/argocd/application.yaml)):
+- Monitors this repository for manifest changes in `infra/k8s/base`
+- Automatically syncs to k3s cluster
+- Provides GitOps-based deployment with auto-healing
+
+**Workflow:**
+```
+Code Push → GitHub Actions → Test → Build → Push to GHCR
+                                              ↓
+                                  Update infra/k8s/base/kustomization.yaml
+                                              ↓
+                                  ArgoCD Auto-Sync → k3s Cluster
+```
+
+### Container Images
+
+Images are built and pushed to GitHub Container Registry:
+- `ghcr.io/mcharno/linked-data-service:latest`
+- `ghcr.io/mcharno/linked-data-service:main-<sha>`
+
+### Infrastructure Setup
+
+The `infra/k8s/base` directory contains Kubernetes manifests:
+- **namespace.yaml**: Namespace definition
+- **deployment.yaml**: Service deployment with 2 replicas
+- **service.yaml**: ClusterIP service
+- **ingress.yaml**: Ingress configuration for external access
+- **configmap.yaml**: Application configuration
+- **secret-template.yaml**: Secret template (needs actual values)
+- **kustomization.yaml**: Kustomize configuration
+
+### Deploying to k3s
+
+#### Prerequisites
+1. k3s cluster with ArgoCD installed
+2. GitHub Container Registry access configured (ghcr-secret)
+3. Geonames API credentials
+
+#### Setup Steps
+
+1. **Fix ArgoCD RBAC permissions** (if needed):
+
+If you encounter RBAC errors like "poddisruptionbudgets.policy is forbidden", apply the RBAC fix:
+
+```bash
+# Apply ArgoCD RBAC permissions
+kubectl apply -f infra/k8s/argocd-rbac/clusterrole.yaml
+kubectl apply -f infra/k8s/argocd-rbac/clusterrolebinding.yaml
+```
+
+See [infra/k8s/argocd-rbac/README.md](infra/k8s/argocd-rbac/README.md) for details.
+
+2. **Create the namespace and secrets**:
+```bash
+# Namespace is created automatically by ArgoCD, but you can create it manually:
+kubectl create namespace web
+
+# Create GHCR pull secret
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=YOUR_GITHUB_USERNAME \
+  --docker-password=YOUR_GITHUB_PAT \
+  -n web
+
+# Create application secrets
+kubectl create secret generic linked-data-secrets \
+  --from-literal=geonames_username=YOUR_GEONAMES_USERNAME \
+  -n web
+```
+
+3. **Deploy the ArgoCD Application**:
+```bash
+kubectl apply -f infra/argocd/application.yaml
+```
+
+4. **Verify deployment**:
+```bash
+# Check ArgoCD application status (using kubectl)
+kubectl get application linked-data-service -n cicd
+
+# Get detailed status
+kubectl get application linked-data-service -n cicd -o yaml
+
+# Check sync and health status
+kubectl get application linked-data-service -n cicd \
+  -o jsonpath='Sync: {.status.sync.status}, Health: {.status.health.status}'
+
+# Check pods in target namespace
+kubectl get pods -n web -l app=linked-data-service
+
+# Check all resources
+kubectl get all -n web -l app=linked-data-service
+
+# Check ingress
+kubectl get ingress -n web
+```
+
+5. **Access the service**:
+- Service is accessible at the domain configured in `infra/k8s/base/ingress.yaml`
+- Access via: `https://charno.net` (update with your domain)
+
+### Manual Sync
+
+If needed, manually trigger an ArgoCD sync using kubectl:
+```bash
+# Trigger sync
+kubectl patch application linked-data-service -n cicd \
+  --type merge \
+  --patch '{"operation": {"initiatedBy": {"username": "kubectl"}, "sync": {"revision": "HEAD"}}}'
+
+# Watch sync progress
+kubectl get application linked-data-service -n cicd -w
+```
+
+**Note**: If you have the ArgoCD CLI installed, you can also use:
+```bash
+argocd app sync linked-data-service -n cicd
+```
+
+See [infra/k8s/ARGOCD_KUBECTL_GUIDE.md](infra/k8s/ARGOCD_KUBECTL_GUIDE.md) for more kubectl commands and ArgoCD CLI installation instructions.
+
+### Monitoring
+
+Check logs:
+```bash
+# All pods
+kubectl logs -n web -l app=linked-data-service
+
+# Specific pod
+kubectl logs -n web <pod-name>
+
+# Follow logs
+kubectl logs -n web -l app=linked-data-service -f
+```
+
+Check health:
+```bash
+# Health endpoint
+curl https://charno.net/health
+
+# API documentation
+curl https://charno.net/api/v1/docs
+```
+
+### Troubleshooting
+
+**RBAC Errors**: If you see errors about forbidden resources (PodDisruptionBudgets, etc.), apply the RBAC fix in step 1 above.
+
+**Image Pull Errors**: Ensure the `ghcr-secret` is created in the `web` namespace with valid credentials.
+
+**Geonames API Errors**: Verify the `linked-data-secrets` secret contains a valid Geonames username.
+
 ## Integration with linked-data-toolkit
 
-This service is designed to work with the [linked-data-toolkit](https://github.com/mcharno/linked-data-toolkit) library. Once the toolkit is available as an npm package, you can integrate it by:
+This service is designed to work with the [linked-data-toolkit](https://github.com/mcharno/linked-data-toolkit) library. Once the toolkit is available as a package, you can integrate it by:
 
 1. Installing the package:
 ```bash
-npm install linked-data-toolkit
+yarn add linked-data-toolkit
 ```
 
 2. Update the controllers to use the actual clients instead of placeholder responses. Each controller has TODO comments indicating where to add the integration code.
