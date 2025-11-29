@@ -18,4 +18,4 @@ labels:
 
 images:
   - name: ghcr.io/mcharno/linked-data-service
-    newTag: latest
+    newTag: main-fe941bb27e652a88f542bab12a6f654241843c05
