@@ -2,20 +2,20 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: linked-data-service
-  namespace: argocd  # ArgoCD namespace
+  namespace: cicd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
 
   source:
-    repoURL: https://github.com/mcharno/web-service-lod.git  # Update with your repo URL
+    repoURL: https://github.com/mcharno/web-service-lod.git
     targetRevision: main
     path: infra/k8s/base
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: linked-data
+    namespace: web
 
   syncPolicy:
     automated:

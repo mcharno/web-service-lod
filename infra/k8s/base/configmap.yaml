@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: linked-data-config
-  namespace: linked-data
+  namespace: web
   labels:
     app: linked-data-service
 data:

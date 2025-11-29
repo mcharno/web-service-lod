@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: linked-data
+namespace: web
 
 resources:
   - namespace.yaml
@@ -17,5 +17,5 @@ labels:
       app.kubernetes.io/managed-by: argocd
 
 images:
-  - name: ghcr.io/GITHUB_USERNAME/linked-data-service
+  - name: ghcr.io/mcharno/linked-data-service
     newTag: latest

@@ -358,76 +358,117 @@ The `infra/k8s/base` directory contains Kubernetes manifests:
 
 #### Setup Steps
 
-1. **Create the namespace and secrets**:
+1. **Fix ArgoCD RBAC permissions** (if needed):
+
+If you encounter RBAC errors like "poddisruptionbudgets.policy is forbidden", apply the RBAC fix:
+
 ```bash
-kubectl create namespace linked-data
+# Apply ArgoCD RBAC permissions
+kubectl apply -f infra/k8s/argocd-rbac/clusterrole.yaml
+kubectl apply -f infra/k8s/argocd-rbac/clusterrolebinding.yaml
+```
+
+See [infra/k8s/argocd-rbac/README.md](infra/k8s/argocd-rbac/README.md) for details.
+
+2. **Create the namespace and secrets**:
+```bash
+# Namespace is created automatically by ArgoCD, but you can create it manually:
+kubectl create namespace web
 
 # Create GHCR pull secret
 kubectl create secret docker-registry ghcr-secret \
   --docker-server=ghcr.io \
   --docker-username=YOUR_GITHUB_USERNAME \
   --docker-password=YOUR_GITHUB_PAT \
-  -n linked-data
+  -n web
 
 # Create application secrets
 kubectl create secret generic linked-data-secrets \
   --from-literal=geonames_username=YOUR_GEONAMES_USERNAME \
-  -n linked-data
+  -n web
 ```
 
-2. **Deploy the ArgoCD Application**:
+3. **Deploy the ArgoCD Application**:
 ```bash
 kubectl apply -f infra/argocd/application.yaml
 ```
 
-3. **Verify deployment**:
+4. **Verify deployment**:
 ```bash
-# Check ArgoCD application status
-argocd app get linked-data-service
+# Check ArgoCD application status (using kubectl)
+kubectl get application linked-data-service -n cicd
 
-# Check pods
-kubectl get pods -n linked-data
+# Get detailed status
+kubectl get application linked-data-service -n cicd -o yaml
 
-# Check service
-kubectl get svc -n linked-data
+# Check sync and health status
+kubectl get application linked-data-service -n cicd \
+  -o jsonpath='Sync: {.status.sync.status}, Health: {.status.health.status}'
+
+# Check pods in target namespace
+kubectl get pods -n web -l app=linked-data-service
+
+# Check all resources
+kubectl get all -n web -l app=linked-data-service
 
 # Check ingress
-kubectl get ingress -n linked-data
+kubectl get ingress -n web
 ```
 
-4. **Access the service**:
-- Update `infra/k8s/base/ingress.yaml` with your domain
-- Access via: `https://lod.yourdomain.com`
+5. **Access the service**:
+- Service is accessible at the domain configured in `infra/k8s/base/ingress.yaml`
+- Access via: `https://charno.net` (update with your domain)
 
 ### Manual Sync
 
-If needed, manually trigger an ArgoCD sync:
+If needed, manually trigger an ArgoCD sync using kubectl:
 ```bash
-argocd app sync linked-data-service
+# Trigger sync
+kubectl patch application linked-data-service -n cicd \
+  --type merge \
+  --patch '{"operation": {"initiatedBy": {"username": "kubectl"}, "sync": {"revision": "HEAD"}}}'
+
+# Watch sync progress
+kubectl get application linked-data-service -n cicd -w
 ```
+
+**Note**: If you have the ArgoCD CLI installed, you can also use:
+```bash
+argocd app sync linked-data-service -n cicd
+```
+
+See [infra/k8s/ARGOCD_KUBECTL_GUIDE.md](infra/k8s/ARGOCD_KUBECTL_GUIDE.md) for more kubectl commands and ArgoCD CLI installation instructions.
 
 ### Monitoring
 
 Check logs:
 ```bash
 # All pods
-kubectl logs -n linked-data -l app=linked-data-service
+kubectl logs -n web -l app=linked-data-service
 
 # Specific pod
-kubectl logs -n linked-data <pod-name>
+kubectl logs -n web <pod-name>
 
 # Follow logs
-kubectl logs -n linked-data -l app=linked-data-service -f
+kubectl logs -n web -l app=linked-data-service -f
 ```
 
 Check health:
 ```bash
 # Health endpoint
-curl https://lod.yourdomain.com/health
+curl https://charno.net/health
 
 # API documentation
-curl https://lod.yourdomain.com/api/v1/docs
+curl https://charno.net/api/v1/docs
 ```
+
+### Troubleshooting
+
+**RBAC Errors**: If you see errors about forbidden resources (PodDisruptionBudgets, etc.), apply the RBAC fix in step 1 above.
+
+**Image Pull Errors**: Ensure the `ghcr-secret` is created in the `web` namespace with valid credentials.
+
+**Geonames API Errors**: Verify the `linked-data-secrets` secret contains a valid Geonames username.
 
 ## Integration with linked-data-toolkit
 

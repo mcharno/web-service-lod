@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: linked-data-ingress
-  namespace: linked-data
+  namespace: web
   labels:
     app: linked-data-service
   annotations:
@@ -24,7 +24,7 @@ spec:
   #   secretName: linked-data-tls
 
   rules:
-  - host: lod.yourdomain.com  # REPLACE with your domain
+  - host: charno.net
     http:
       paths:
       # API routes

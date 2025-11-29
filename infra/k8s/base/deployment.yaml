@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: linked-data-service
-  namespace: linked-data
+  namespace: web
   labels:
     app: linked-data-service
     component: api
