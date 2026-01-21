@@ -15,4 +15,4 @@ commonLabels:
 
 images:
   - name: ghcr.io/mcharno/linked-data-service
-    newTag: main-e3027b700b080f5d42c05ccff355bd28c27c2d5e
+    newTag: main
