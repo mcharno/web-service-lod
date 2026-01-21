@@ -2,12 +2,11 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: linked-data-config
-  namespace: web
   labels:
     app: linked-data-service
 data:
-  # Application settings
   NODE_ENV: "production"
   PORT: "3000"
   API_BASE_PATH: "/api"
   LOG_LEVEL: "info"
+  GEONAMES_USERNAME: "demo"

@@ -2,17 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: linked-data-service
-  namespace: web
   labels:
     app: linked-data-service
-    component: api
 spec:
-  replicas: 2
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+  replicas: 1
   selector:
     matchLabels:
       app: linked-data-service
@@ -20,55 +13,35 @@ spec:
     metadata:
       labels:
         app: linked-data-service
-        component: api
     spec:
       imagePullSecrets:
         - name: ghcr-secret
       containers:
-      - name: api
-        image: ghcr.io/mcharno/linked-data-service:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 3000
-          name: http
-          protocol: TCP
-        envFrom:
-        - configMapRef:
-            name: linked-data-config
-        env:
-        - name: GEONAMES_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: linked-data-secrets
-              key: geonames_username
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 3
-          failureThreshold: 3
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1001
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
-          capabilities:
-            drop:
-              - ALL
+        - name: api
+          image: ghcr.io/mcharno/linked-data-service:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: linked-data-config
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
