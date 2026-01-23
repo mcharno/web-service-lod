@@ -5,6 +5,7 @@ const morgan = require('morgan');
 
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
+const { metricsMiddleware, metricsHandler } = require('./middleware/metrics');
 
 const app = express();
 
@@ -23,6 +24,9 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Prometheus metrics middleware (before routes)
+app.use(metricsMiddleware);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -31,6 +35,9 @@ app.get('/health', (req, res) => {
     uptime: process.uptime()
   });
 });
+
+// Prometheus metrics endpoint
+app.get('/metrics', metricsHandler);
 
 // API routes
 const apiBasePath = process.env.API_BASE_PATH || '/api';
