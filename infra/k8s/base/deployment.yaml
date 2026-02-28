@@ -22,8 +22,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: api
-          image: ghcr.io/mcharno/linked-data-service:latest
-          imagePullPolicy: Always
+          image: ghcr.io/mcharno/linked-data-service:sha256-placeholder
           ports:
             - containerPort: 3000
           envFrom:
