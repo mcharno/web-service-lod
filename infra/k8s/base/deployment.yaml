@@ -22,7 +22,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: api
-          image: ghcr.io/mcharno/linked-data-service:sha256-2c4ede6
+          image: ghcr.io/mcharno/linked-data-service:sha256-b5aecf4
           ports:
             - containerPort: 3000
           envFrom:
