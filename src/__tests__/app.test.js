@@ -143,4 +143,25 @@ describe('Linked Data Web Service', () => {
       expect(res.body).toHaveProperty('error', 'Not Found');
     });
   });
+
+  describe('Metrics route labels', () => {
+    const routeLabels = async () => {
+      const res = await request(app).get('/metrics');
+      return [...res.text.matchAll(/^lod_http_requests_total\{[^}]*route="([^"]*)"/gm)].map((m) => m[1]);
+    };
+
+    it('collapses unmatched paths into one label', async () => {
+      await request(app).get('/.env.backup');
+      await request(app).get('/wp-admin/setup-config.php');
+      const routes = await routeLabels();
+      expect(routes).toContain('unmatched');
+      expect(routes).not.toContain('/.env.backup');
+      expect(routes.some((r) => r.includes('wp-admin'))).toBe(false);
+    });
+
+    it('labels matched requests with the route pattern', async () => {
+      await request(app).get('/health');
+      expect(await routeLabels()).toContain('/health');
+    });
+  });
 });

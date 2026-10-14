@@ -93,12 +93,16 @@ const errorsTotal = new client.Counter({
 // Helper Functions
 // ============================================================================
 
-function getRoutePattern(path) {
-  // Normalize routes for metrics (replace IDs with :id)
-  return path
-    .replace(/\/\d+/g, '/:id')
-    .replace(/\/[a-f0-9-]{36}/g, '/:uuid')
-    .replace(/\/[a-zA-Z0-9_-]{10,}/g, '/:slug');
+// Label by the matched Express route (e.g. "/api/v1/dbpedia/lookup/:term"),
+// never by the raw request path. Raw paths are attacker-controlled: scanner
+// probes such as /.env.bak created one label value (x histogram buckets x
+// status codes) per probed URL and grew Prometheus's series count without bound.
+// Requests that match no route (404s) share a single constant label.
+function getRoute(req) {
+  if (req.route && typeof req.route.path === 'string') {
+    return (req.baseUrl || '') + req.route.path;
+  }
+  return 'unmatched';
 }
 
 // ============================================================================
@@ -108,7 +112,6 @@ function getRoutePattern(path) {
 function metricsMiddleware(req, res, next) {
   const startTime = Date.now();
   const method = req.method;
-  const originalUrl = req.originalUrl || req.url;
 
   // Increment in-progress requests
   httpRequestsInProgress.inc({ method });
@@ -123,7 +126,7 @@ function metricsMiddleware(req, res, next) {
     // Calculate request duration
     const duration = (Date.now() - startTime) / 1000;
     const statusCode = res.statusCode.toString();
-    const route = getRoutePattern(originalUrl);
+    const route = getRoute(req);
 
     // Decrement in-progress requests
     httpRequestsInProgress.dec({ method });
@@ -189,6 +192,7 @@ function trackExternalApiError(source, errorType) {
 // ============================================================================
 
 module.exports = {
+  getRoute,
   metricsMiddleware,
   metricsHandler,
   trackLinkedDataQuery,
